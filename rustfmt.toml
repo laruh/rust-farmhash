@@ -1,0 +1,4 @@
+# Maximum width of each line.
+# Default: 100
+# https://github.com/rust-lang/rustfmt/blob/master/Configurations.md#max_width
+max_width = 120

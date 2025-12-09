@@ -1,6 +1,7 @@
 [package]
 name = "farmhash"
 version = "1.1.5"
+edition = "2024"
 authors = ["Seif Lotfy <seif.lotfy@gmail.com>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -25,5 +26,10 @@ keywords = ["farmhash", "hashing"]
 # be separated with a `/`
 license = "MIT"
 
+[[bench]]
+name = "bench_web2dict"
+harness = false
+
 [dev-dependencies]
-fnv = "1.0.0"
+fnv = "1.0.7"
+criterion = "0.8.1"

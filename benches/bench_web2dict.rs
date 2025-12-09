@@ -1,135 +1,274 @@
-#![feature(test)]
-extern crate test;
-extern crate farmhash;
-extern crate fnv;
-
-use self::farmhash::*;
-use self::test::Bencher;
+use criterion::{Criterion, criterion_group, criterion_main};
+use farmhash::{self, FarmHasher};
+use fnv::FnvHasher;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
+use std::hint::black_box;
 use std::io::prelude::*;
 use std::path::Path;
-use std::error::Error;
-use std::hash::{Hash, SipHasher, Hasher};
-use test::black_box;
 
-// Macros to insert into other macros to test with Hash trait or with a direct
-// function
+// Macros to insert into other macros to test with Hash trait or with a direct function
 macro_rules! hash_hashing {
     ($data:ident, $hasher:expr) => {{
         let mut hasher = $hasher;
         $data.hash(&mut hasher);
         black_box(hasher.finish());
-    }}
+    }};
 }
 
 macro_rules! direct_hashing_str {
     ($data:ident, $hasher:expr) => {{
-        black_box($hasher(&$data.as_bytes()));
-    }}
+        black_box($hasher($data.as_bytes()));
+    }};
 }
 
 macro_rules! direct_hashing_u8 {
     ($data:ident, $hasher:expr) => {{
         black_box($hasher($data));
-    }}
+    }};
 }
 
-// Dictonary benchmark
-macro_rules! dict_bench {
-    ($fun:ident, $hashing:ident, $hasher:expr) => {
-        #[bench]
-        fn $fun(b: &mut Bencher) {
-            let path = Path::new("benches/sample-dict");
-            let display = path.display();
+// Dictionary benchmark
+fn bench_dicts(c: &mut Criterion) {
+    let path = Path::new("benches/sample-dict");
+    let display = path.display();
 
-            // Open file in read-only mode
-            let mut file = match File::open(&path) {
-                Err(e) => panic!("Couldn't open '{}': {}", display, e),
-                Ok(file) => file,
-            };
+    // Open file in read-only mode
+    let mut file = match File::open(&path) {
+        Err(e) => panic!("Couldn't open '{}': {}", display, e),
+        Ok(file) => file,
+    };
 
-            // Read all contents to string
-            let mut dict = String::new();
-            if let Err(e) = file.read_to_string(&mut dict) {
-                panic!("Couldn't read '{}': {}", display, e);
-            }
-
-            b.iter(|| {
-                for s in dict.split('\n') {
-                    $hashing!(s, $hasher)
-                }
-            });
-        }
+    // Read all contents to string
+    let mut dict = String::new();
+    if let Err(e) = file.read_to_string(&mut dict) {
+        panic!("Couldn't read '{}': {}", display, e);
     }
+
+    let mut group = c.benchmark_group("dict");
+
+    #[allow(deprecated)]
+    group.bench_function("dict_sip24", |b| {
+        b.iter(|| {
+            for s in dict.split('\n') {
+                hash_hashing!(s, std::hash::SipHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("dict_default_hasher", |b| {
+        b.iter(|| {
+            for s in dict.split('\n') {
+                hash_hashing!(s, std::hash::DefaultHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("dict_fnv", |b| {
+        b.iter(|| {
+            for s in dict.split('\n') {
+                hash_hashing!(s, FnvHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("dict_farm", |b| {
+        b.iter(|| {
+            for s in dict.split('\n') {
+                hash_hashing!(s, FarmHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("dict_farm_direct", |b| {
+        b.iter(|| {
+            for s in dict.split('\n') {
+                direct_hashing_str!(s, farmhash::hash64);
+            }
+        });
+    });
+
+    group.finish();
 }
-
-dict_bench!(bench_dict_sip, hash_hashing, SipHasher::default());
-dict_bench!(bench_dict_fnv, hash_hashing, fnv::FnvHasher::default());
-dict_bench!(bench_dict_farm, hash_hashing, farmhash::FarmHasher::default());
-dict_bench!(bench_dict_farm_direct, direct_hashing_str, farmhash::hash64);
-
 
 // Lorem Ipsum benchmark
-macro_rules! lorem_bench {
-    ($fun:ident, $hashing:ident, $hasher:expr) => {
-        #[bench]
-        fn $fun(b: &mut Bencher) {
-            let data = ["Lorem", "ipsum", "dolor", "sit", "amet,", "consetetur",
-                        "sadipscing", "elitr,", "sed", "diam", "nonumy",
-                        "eirmod", "tempor", "invidunt", "ut", "labore", "et",
-                        "dolore", "magna", "aliquyam", "erat,", "sed", "diam",
-                        "voluptua."];
+fn bench_lorem(c: &mut Criterion) {
+    let data = [
+        "Lorem",
+        "ipsum",
+        "dolor",
+        "sit",
+        "amet,",
+        "consetetur",
+        "sadipscing",
+        "elitr,",
+        "sed",
+        "diam",
+        "nonumy",
+        "eirmod",
+        "tempor",
+        "invidunt",
+        "ut",
+        "labore",
+        "et",
+        "dolore",
+        "magna",
+        "aliquyam",
+        "erat,",
+        "sed",
+        "diam",
+        "voluptua.",
+    ];
 
-            b.iter(|| {
-                for s in &data {
-                    $hashing!(s, $hasher)
-                }
-            });
-        }
-    }
+    let mut group = c.benchmark_group("lorem");
+
+    #[allow(deprecated)]
+    group.bench_function("lorem_sip24", |b| {
+        b.iter(|| {
+            for s in &data {
+                hash_hashing!(s, std::hash::SipHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("lorem_default_hasher", |b| {
+        b.iter(|| {
+            for s in &data {
+                hash_hashing!(s, std::hash::DefaultHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("lorem_fnv", |b| {
+        b.iter(|| {
+            for s in &data {
+                hash_hashing!(s, FnvHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("lorem_farm", |b| {
+        b.iter(|| {
+            for s in &data {
+                hash_hashing!(s, FarmHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("lorem_farm_direct", |b| {
+        b.iter(|| {
+            for s in &data {
+                direct_hashing_str!(s, farmhash::hash64);
+            }
+        });
+    });
+
+    group.finish();
 }
-
-lorem_bench!(bench_lorem_sip, hash_hashing, SipHasher::default());
-lorem_bench!(bench_lorem_fnv, hash_hashing, fnv::FnvHasher::default());
-lorem_bench!(bench_lorem_farm, hash_hashing, farmhash::FarmHasher::default());
-lorem_bench!(bench_lorem_farm_direct, direct_hashing_str, farmhash::hash64);
-
 
 // Pseudo random data benchmark
-macro_rules! lorem_bench {
-    ($fun:ident, $chunk:expr, $hashing:ident, $hasher:expr) => {
-        #[bench]
-        fn $fun(b: &mut Bencher) {
-            let path = Path::new("benches/pseudo-random-data.bin");
-            let display = path.display();
+fn bench_pseudorand(c: &mut Criterion) {
+    let path = Path::new("benches/pseudo-random-data.bin");
+    let display = path.display();
 
-            // Open file in read-only mode
-            let mut file = match File::open(&path) {
-                Err(e) => panic!("Couldn't open '{}': {}", display, e),
-                Ok(file) => file,
-            };
+    // Open file in read-only mode
+    let mut file = match File::open(&path) {
+        Err(e) => panic!("Couldn't open '{}': {}", display, e),
+        Ok(file) => file,
+    };
 
-            // Read all contents to string
-            let mut data = Vec::new();
-            if let Err(e) = file.read_to_end(&mut data) {
-                panic!("Couldn't read '{}': {}", display, e);
-            }
-
-            b.iter(|| {
-                for s in data.chunks($chunk) {
-                    $hashing!(s, $hasher)
-                }
-            });
-        }
+    // Read all contents to vec
+    let mut data = Vec::new();
+    if let Err(e) = file.read_to_end(&mut data) {
+        panic!("Couldn't read '{}': {}", display, e);
     }
+
+    let mut group = c.benchmark_group("pseudo-random");
+
+    #[allow(deprecated)]
+    group.bench_function("pseudorand_big_sip24", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(512) {
+                hash_hashing!(chunk, std::hash::SipHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_big_default_hasher", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(512) {
+                hash_hashing!(chunk, std::hash::DefaultHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_big_fnv", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(512) {
+                hash_hashing!(chunk, FnvHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_big_farm", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(512) {
+                hash_hashing!(chunk, FarmHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_big_farm_direct", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(512) {
+                direct_hashing_u8!(chunk, farmhash::hash64);
+            }
+        });
+    });
+
+    #[allow(deprecated)]
+    group.bench_function("pseudorand_small_sip24", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(4) {
+                hash_hashing!(chunk, std::hash::SipHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_small_default_hasher", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(4) {
+                hash_hashing!(chunk, std::hash::DefaultHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_small_fnv", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(4) {
+                hash_hashing!(chunk, FnvHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_small_farm", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(4) {
+                hash_hashing!(chunk, FarmHasher::default());
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_small_farm_direct", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(4) {
+                direct_hashing_u8!(chunk, farmhash::hash64);
+            }
+        });
+    });
+
+    group.finish();
 }
 
-lorem_bench!(bench_pseurand_big_sip, 512, hash_hashing, SipHasher::default());
-lorem_bench!(bench_pseurand_big_fnv, 512, hash_hashing, fnv::FnvHasher::default());
-lorem_bench!(bench_pseurand_big_farm, 512, hash_hashing, farmhash::FarmHasher::default());
-lorem_bench!(bench_pseurand_big_farm_direct, 512, direct_hashing_u8, farmhash::hash64);
-
-lorem_bench!(bench_pseurand_small_sip, 4, hash_hashing, SipHasher::default());
-lorem_bench!(bench_pseurand_small_fnv, 4, hash_hashing, fnv::FnvHasher::default());
-lorem_bench!(bench_pseurand_small_farm, 4, hash_hashing, farmhash::FarmHasher::default());
-lorem_bench!(bench_pseurand_small_farm_direct, 4, direct_hashing_u8, farmhash::hash64);
+criterion_group!(benches, bench_dicts, bench_lorem, bench_pseudorand);
+criterion_main!(benches);

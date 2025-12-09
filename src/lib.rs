@@ -1,15 +1,15 @@
-mod platform;
-mod farmhashna;
+mod farmhashcc_shared;
 mod farmhashmk;
+mod farmhashmk_shared;
+mod farmhashna;
+mod farmhashna_shared;
 mod farmhashuo;
 mod farmhashxo;
-mod farmhashna_shared;
-mod farmhashcc_shared;
-mod farmhashmk_shared;
+mod platform;
 
-use farmhashna::na_hash64;
 use farmhashmk::mk_hash32;
 use farmhashmk::mk_hash32_with_seed;
+use farmhashna::na_hash64;
 use farmhashxo::xo_hash64;
 use farmhashxo::xo_hash64_with_seed;
 use farmhashxo::xo_hash64_with_seeds;
@@ -90,12 +90,16 @@ pub fn fingerprint64(s: &[u8]) -> u64 {
 }
 
 pub struct FarmHasher {
-    bytes: Vec<u8>
+    bytes: Vec<u8>,
 }
 
 impl Default for FarmHasher {
     #[inline]
-    fn default() -> FarmHasher { FarmHasher{bytes: Vec::with_capacity(20)} }
+    fn default() -> FarmHasher {
+        FarmHasher {
+            bytes: Vec::with_capacity(20),
+        }
+    }
 }
 
 impl Hasher for FarmHasher {

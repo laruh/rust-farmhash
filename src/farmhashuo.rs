@@ -1,29 +1,32 @@
-use platform::*;
-use farmhashna::*;
-use farmhashna_shared::*;
-use farmhashcc_shared::weak_hash_len_32_with_seeds_bytes;
+use crate::farmhashcc_shared::weak_hash_len_32_with_seeds_bytes;
+use crate::farmhashna::*;
+use crate::farmhashna_shared::*;
+use crate::platform::*;
 use std::mem;
 
 fn uo_h(x: u64, y: u64, mul: u64, r: u64) -> u64 {
     let mut a = (x ^ y).wrapping_mul(mul);
     a ^= a >> 47;
     let b = (y ^ a).wrapping_mul(mul);
-    return rotate64(b, r).wrapping_mul(mul);
+    rotate64(b, r).wrapping_mul(mul)
 }
 
 pub fn uo_hash64_with_seeds(mut s: &[u8], seed0: u64, seed1: u64) -> u64 {
-    let len = s.len() as usize;
+    let len = s.len();
     if len <= 64 {
-        return na_hash64_with_seeds(s, seed0, seed1)
+        return na_hash64_with_seeds(s, seed0, seed1);
     }
 
     // For strings over 64 bytes we loop.  Internal state consists of
     // 64 bytes: u, v, w, x, y, and z.
     let mut x = seed0;
     let mut y = seed1.wrapping_mul(K1).wrapping_add(113);
-    let mut z =  shift_mix(y.wrapping_mul(K2)).wrapping_mul(K2);
-    let mut v = Uint128{first: seed0, second: seed1};
-    let mut w = Uint128{first: 0, second: 0};
+    let mut z = shift_mix(y.wrapping_mul(K2)).wrapping_mul(K2);
+    let mut v = Uint128 {
+        first: seed0,
+        second: seed1,
+    };
+    let mut w = Uint128 { first: 0, second: 0 };
     let mut u = x.wrapping_sub(z);
     x = x.wrapping_mul(K2);
     let mul = K2.wrapping_add(u & 0x82);
@@ -89,11 +92,15 @@ pub fn uo_hash64_with_seeds(mut s: &[u8], seed0: u64, seed1: u64) -> u64 {
     u = u.wrapping_mul(9);
     v.second = rotate64(v.second, 28);
     v.first = rotate64(v.first, 20);
-    w.first = w.first.wrapping_add((len-1) as u64 & 63);
+    w.first = w.first.wrapping_add((len - 1) as u64 & 63);
     u = u.wrapping_add(y);
     y = y.wrapping_add(u);
-    x = rotate64(y.wrapping_sub(x).wrapping_add(v.first).wrapping_add(fetch64(&s[8..])), 37).wrapping_mul(mul);
-    y = rotate64(y^v.second^fetch64(&s[48..]), 42).wrapping_mul(mul);
+    x = rotate64(
+        y.wrapping_sub(x).wrapping_add(v.first).wrapping_add(fetch64(&s[8..])),
+        37,
+    )
+    .wrapping_mul(mul);
+    y = rotate64(y ^ v.second ^ fetch64(&s[48..]), 42).wrapping_mul(mul);
 
     x ^= w.second.wrapping_mul(9);
     y = y.wrapping_add(v.first).wrapping_add(fetch64(&s[40..]));
@@ -101,22 +108,26 @@ pub fn uo_hash64_with_seeds(mut s: &[u8], seed0: u64, seed1: u64) -> u64 {
 
     v = weak_hash_len_32_with_seeds_bytes(s, v.second.wrapping_mul(mul), x.wrapping_add(w.first));
     w = weak_hash_len_32_with_seeds_bytes(&s[32..], z.wrapping_add(w.second), y.wrapping_add(fetch64(&s[16..])));
-    return uo_h(hash_len_16_mul(v.first.wrapping_add(x), w.first^y, mul).wrapping_add(z).wrapping_sub(u),
-        uo_h(v.second.wrapping_add(y), w.second.wrapping_add(z), K2, 30)^x,
+    uo_h(
+        hash_len_16_mul(v.first.wrapping_add(x), w.first ^ y, mul)
+            .wrapping_add(z)
+            .wrapping_sub(u),
+        uo_h(v.second.wrapping_add(y), w.second.wrapping_add(z), K2, 30) ^ x,
         K2,
-        31);
+        31,
+    )
 }
 
 pub fn uo_hash64_with_seed(s: &[u8], seed: u64) -> u64 {
     if s.len() <= 64 {
-        return na_hash64_with_seed(s, seed)
+        return na_hash64_with_seed(s, seed);
     }
-    return uo_hash64_with_seeds(s, 0, seed)
+    uo_hash64_with_seeds(s, 0, seed)
 }
 
 pub fn uo_hash64(s: &[u8]) -> u64 {
     if s.len() <= 64 {
-        return na_hash64(s)
+        return na_hash64(s);
     }
-    return uo_hash64_with_seeds(s, 81, 0)
+    uo_hash64_with_seeds(s, 81, 0)
 }
