@@ -47,7 +47,7 @@ pub fn na_hash64(mut s: &[u8]) -> u64 {
 
         mem::swap(&mut z, &mut x);
         s = &s[64..];
-        s.len() >= 64
+        s.len() > 64
     } {}
 
     let mul = K1 + ((z & 0xff) << 1);
