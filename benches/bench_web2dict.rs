@@ -88,6 +88,14 @@ fn bench_dicts(c: &mut Criterion) {
         });
     });
 
+    group.bench_function("dict_farm_fingerprint64", |b| {
+        b.iter(|| {
+            for s in dict.split('\n') {
+                direct_hashing_str!(s, farmhash::fingerprint64);
+            }
+        });
+    });
+
     group.finish();
 }
 
@@ -163,6 +171,14 @@ fn bench_lorem(c: &mut Criterion) {
         });
     });
 
+    group.bench_function("lorem_farm_fingerprint64", |b| {
+        b.iter(|| {
+            for s in &data {
+                direct_hashing_str!(s, farmhash::fingerprint64);
+            }
+        });
+    });
+
     group.finish();
 }
 
@@ -226,6 +242,14 @@ fn bench_pseudorand(c: &mut Criterion) {
         });
     });
 
+    group.bench_function("pseudorand_big_farm_fingerprint64", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(512) {
+                direct_hashing_u8!(chunk, farmhash::fingerprint64);
+            }
+        });
+    });
+
     #[allow(deprecated)]
     group.bench_function("pseudorand_small_sip24", |b| {
         b.iter(|| {
@@ -263,6 +287,14 @@ fn bench_pseudorand(c: &mut Criterion) {
         b.iter(|| {
             for chunk in data.chunks(4) {
                 direct_hashing_u8!(chunk, farmhash::hash64);
+            }
+        });
+    });
+
+    group.bench_function("pseudorand_small_farm_fingerprint64", |b| {
+        b.iter(|| {
+            for chunk in data.chunks(4) {
+                direct_hashing_u8!(chunk, farmhash::fingerprint64);
             }
         });
     });
